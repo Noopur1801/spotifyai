@@ -64,7 +64,7 @@ const TrackPlayerTimer = ({ loungeId, currentTrack }) => {
 
    if (!currentTrack) {
       return (
-         <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-slate-400 text-center">
+         <div className="bg-[#2B124C] p-8 text-[#DFB6B2]/75 text-center w-full font-medium">
             No track currently playing
          </div>
       );
@@ -73,26 +73,26 @@ const TrackPlayerTimer = ({ loungeId, currentTrack }) => {
    const progressPercent = ((currentTrack.durationSeconds - timeLeft) / currentTrack.durationSeconds) * 100;
 
    return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-white max-w-md mx-auto shadow-xl">
+      <div className="bg-[#2B124C] p-6 text-[#FBE4D8] w-full">
          <div className="flex justify-between items-center mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400">Now Playing</span>
-            <span className="text-xs text-slate-400 font-mono">{formatTime(timeLeft)} remaining</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#DFB6B2]">Now Playing</span>
+            <span className="text-xs text-[#DFB6B2]/80 font-mono">{formatTime(timeLeft)} remaining</span>
          </div>
 
          <div className="mb-4">
-            <h3 className="text-lg font-bold truncate">{currentTrack.title}</h3>
-            <p className="text-sm text-slate-400 truncate">{currentTrack.artist}</p>
+            <h3 className="text-lg font-bold truncate text-[#FBE4D8]">{currentTrack.title}</h3>
+            <p className="text-sm text-[#DFB6B2]/80 truncate">{currentTrack.artist}</p>
          </div>
 
          {/* Track Progress Bar */}
-         <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-4">
+         <div className="w-full bg-[#190019] h-2 rounded-full overflow-hidden mb-4">
             <div
-               className="bg-indigo-500 h-full transition-all duration-1000 linear"
+               className="bg-gradient-to-r from-[#854F6C] to-[#DFB6B2] h-full transition-all duration-1000 linear"
                style={{ width: `${progressPercent}%` }}
             ></div>
          </div>
 
-         <div className="flex justify-between text-xs text-slate-400 font-mono">
+         <div className="flex justify-between text-xs text-[#DFB6B2]/80 font-mono">
             <span>BPM: {currentTrack.acoustic?.bpm}</span>
             <span>Key: {currentTrack.acoustic?.camelotKey}</span>
          </div>

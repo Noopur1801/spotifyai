@@ -1,68 +1,67 @@
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
-import jwt from 'jsonwebtoken';
 import asyncHandler from '../utils/asyncHandler.js';
-
-// Helper to generate JWT token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
-};
 
 // @desc    Register a new user
 // @route   POST /api/v1/auth/signup
-// @access  Public
-const registerUser = asyncHandler(async (req, res) => {
-  const { displayName, email, password, role } = req.body;
+export const signup = asyncHandler(async (req, res) => {
+  const { username, email, password } = req.body;
 
-  const userExists = await User.findOne({ email });
-  if (userExists) {
-    res.status(400);
-    throw new Error('User already exists with this email');
+  if (!username || !email || !password) {
+    return res.status(400).json({ success: false, message: 'Please provide username, email, and password' });
+  }
+
+  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  if (existingUser) {
+    return res.status(400).json({ success: false, message: 'Email is already registered' });
   }
 
   const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash(password, salt);
+  const hashedPassword = await bcrypt.hash(password, salt);
 
   const user = await User.create({
-    displayName,
+    username,
     email,
-    passwordHash,
-    role: role || 'listener',
+    password: hashedPassword,
   });
 
   res.status(201).json({
     success: true,
-    _id: user._id,
-    displayName: user.displayName,
-    email: user.email,
-    role: user.role,
-    token: generateToken(user._id),
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    },
   });
 });
 
-// @desc    Authenticate user & get token (Login)
+// @desc    Login user
 // @route   POST /api/v1/auth/login
-// @access  Public
-const loginUser = asyncHandler(async (req, res) => {
+export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Please provide email and password' });
+  }
 
-  if (user && (await bcrypt.compare(password, user.passwordHash))) {
-    res.status(200).json({
-      success: true,
-      _id: user._id,
-      displayName: user.displayName,
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (!user) {
+    return res.status(401).json({ success: false, message: 'Invalid email or password' });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(401).json({ success: false, message: 'Invalid email or password' });
+  }
+
+  res.status(200).json({
+    success: true,
+    user: {
+      id: user._id,
+      username: user.username,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id),
-    });
-  } else {
-    res.status(401);
-    throw new Error('Invalid email or password');
-  }
+    },
+  });
 });
-
-export { registerUser, loginUser };

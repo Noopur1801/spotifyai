@@ -1,17 +1,16 @@
+import crypto from 'crypto';
 import DJLounge from '../models/DJLounge.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 // @desc    Get DJ Lounge details by ID
 // @route   GET /api/v1/lounges/:id
-// @access  Private
 export const getLoungeById = asyncHandler(async (req, res) => {
   const lounge = await DJLounge.findById(req.params.id)
-    .populate('hostUserId', 'displayName email role')
+    .populate('hostId', 'username email role')
     .populate('currentTrackId');
 
   if (!lounge) {
-    res.status(404);
-    throw new Error('DJ Lounge not found');
+    return res.status(404).json({ success: false, message: 'DJ Lounge not found' });
   }
 
   res.status(200).json({
@@ -22,26 +21,32 @@ export const getLoungeById = asyncHandler(async (req, res) => {
 
 // @desc    Create a new DJ Lounge
 // @route   POST /api/v1/lounges
-// @access  Private (Host/Admin)
 export const createLounge = asyncHandler(async (req, res) => {
-  const { seedTrackId, vibeProfile, maxParticipants, bpmTolerancePct, soundclashEnabled, aiVerbosity } = req.body;
+  const {
+    hostId,
+    seedTrackId,
+    loungeVibes,
+    maxParticipants,
+    bpmTolerancePct,
+    soundclashEnabled,
+    aiVerbosity,
+  } = req.body;
 
-  // Generate a random 6-character invite code (e.g., SP-9X2L)
-  const inviteCode = 'SP-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+  const inviteCode = crypto.randomBytes(3).toString('hex').toUpperCase();
 
   const lounge = await DJLounge.create({
-    hostUserId: req.user._id,
+    hostId: hostId || null,
     inviteCode,
-    vibeProfile: vibeProfile || 'General Vibe',
+    loungeVibes: loungeVibes || 'General Vibe',
     queue: seedTrackId ? [seedTrackId] : [],
     currentTrackId: seedTrackId || null,
+    currentTrackTime: 0,
     settings: {
       maxParticipants: maxParticipants || 50,
       bpmTolerancePct: bpmTolerancePct || 8,
       soundclashEnabled: soundclashEnabled ?? true,
       aiVerbosity: aiVerbosity || 'normal',
     },
-    participantIds: [req.user._id],
   });
 
   res.status(201).json({
@@ -49,8 +54,9 @@ export const createLounge = asyncHandler(async (req, res) => {
     data: {
       loungeId: lounge._id,
       inviteCode: lounge.inviteCode,
+      loungeVibes: lounge.loungeVibes,
       status: lounge.status,
-      hostUserId: lounge.hostUserId,
+      hostId: lounge.hostId,
       createdAt: lounge.createdAt,
     },
   });

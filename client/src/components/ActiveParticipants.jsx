@@ -19,18 +19,18 @@ const ActiveParticipants = ({ loungeId, userId, displayName }) => {
    }, [loungeId, userId, displayName]);
 
    return (
-      <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 text-white w-64">
-         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+      <div className="bg-[#2B124C] p-5 text-[#FBE4D8] w-full">
+         <h4 className="text-xs font-semibold uppercase tracking-wider text-[#DFB6B2] mb-3">
             Active Room ({participants.length + 1})
          </h4>
-         <ul className="space-y-2">
-            <li className="text-sm flex items-center gap-2">
-               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+         <ul className="space-y-2.5">
+            <li className="text-sm flex items-center gap-2.5 font-medium text-[#FBE4D8]">
+               <span className="w-2 h-2 bg-[#DFB6B2] rounded-full animate-pulse"></span>
                {displayName} (You)
             </li>
             {participants.map((p, idx) => (
-               <li key={idx} className="text-sm flex items-center gap-2 text-slate-300">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+               <li key={idx} className="text-sm flex items-center gap-2.5 text-[#DFB6B2]/80">
+                  <span className="w-2 h-2 bg-[#854F6C] rounded-full"></span>
                   {p.displayName}
                </li>
             ))}

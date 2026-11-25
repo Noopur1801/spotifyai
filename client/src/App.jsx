@@ -14,12 +14,11 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Public Auth Route */}
-        <Route path="/auth" element={<AuthForm onAuthSuccess={(data) => window.location.href = `/lounge/${data._id}`} />} />
+        <Route path="/auth" element={<AuthForm />} />
 
         {/* Protected Routes Wrapper */}
         <Route element={<ProtectedRoute />}>
           <Route path="/lounge/:id" element={<LoungeRouteWrapper />} />
-          {/* You can add more protected routes here later (e.g. user profile, dashboard list) */}
         </Route>
 
         {/* Fallback */}

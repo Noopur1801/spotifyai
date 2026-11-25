@@ -1,137 +1,237 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import ActiveParticipants from '../components/ActiveParticipants.jsx';
+import TrackPlayerTimer from '../components/TrackPlayerTimer.jsx';
+import SoundclashCard from '../components/SoundclashCard.jsx';
+import API from '../api/axiosClient.js';
+import { useSocket } from '../hooks/useSocket.js';
 
-const AuthForm = ({ onAuthSuccess }) => {
-   const [isLogin, setIsLogin] = useState(true);
-   const [formData, setFormData] = useState({ username: '', email: '', password: '' });
-   const [error, setError] = useState('');
-   const [loading, setLoading] = useState(false);
+const LoungeDashboard = ({ loungeId }) => {
+   const [loungeData, setLoungeData] = useState(null);
+   const [loading, setLoading] = useState(true);
 
-   const handleChange = (e) => {
-      setFormData({ ...formData, [e.target.name]: e.target.value });
+   // Create Lounge modal state
+   const [showCreateModal, setShowCreateModal] = useState(false);
+   const [loungeVibes, setLoungeVibes] = useState('');
+   const [creating, setCreating] = useState(false);
+   const [createError, setCreateError] = useState('');
+
+   const navigate = useNavigate();
+
+   // Pull current user details from localStorage
+   const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+   const userId = storedUser.id || 'guest_id';
+   const displayName = storedUser.username || 'GuestDJ';
+
+   // Initialize the shared real-time socket connection for this room
+   const socket = useSocket(loungeId, userId, displayName);
+
+   const handleLogout = () => {
+      if (socket) socket.disconnect();
+      localStorage.removeItem('user');
+      navigate('/auth', { replace: true });
    };
 
-   const handleSubmit = async (e) => {
+   const handleCreateLounge = async (e) => {
       e.preventDefault();
-      setError('');
-      setLoading(true);
+      if (!loungeVibes.trim()) return;
 
-      const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/signup';
-      const payload = isLogin
-         ? { email: formData.email, password: formData.password }
-         : formData;
-
+      setCreating(true);
+      setCreateError('');
       try {
-         const response = await fetch(`http://localhost:5000${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+         const { data } = await API.post('/lounges', {
+            hostId: storedUser.id || null,
+            loungeVibes: loungeVibes.trim(),
          });
 
-         const data = await response.json();
+         const newLoungeId = data?.data?.loungeId || data?.loungeId;
+         setShowCreateModal(false);
+         setLoungeVibes('');
 
-         if (!response.ok) {
-            throw new Error(data.message || 'Authentication failed');
+         if (newLoungeId) {
+            navigate(`/lounge/${newLoungeId}`);
          }
-
-         localStorage.setItem('token', data.token);
-         localStorage.setItem('user', JSON.stringify({ id: data._id, username: data.username, role: data.role }));
-
-         if (onAuthSuccess) onAuthSuccess(data);
       } catch (err) {
-         setError(err.message);
+         setCreateError(err.response?.data?.message || 'Failed to create lounge');
       } finally {
-         setLoading(false);
+         setCreating(false);
       }
    };
 
+   useEffect(() => {
+      const fetchLounge = async () => {
+         setLoading(true);
+         try {
+            const { data } = await API.get(`/lounges/${loungeId}`);
+            setLoungeData(data.data || data);
+         } catch (err) {
+            console.error('Failed to load lounge:', err);
+         } finally {
+            setLoading(false);
+         }
+      };
+
+      fetchLounge();
+   }, [loungeId]);
+
+   if (loading) {
+      return (
+         <div className="min-h-screen bg-[#190019] text-[#DFB6B2] flex items-center justify-center font-medium">
+            Loading AI DJ Studio...
+         </div>
+      );
+   }
+
+   const isSoundclashActive =
+      loungeData?.soundclash?.endsAt &&
+      new Date(loungeData.soundclash.endsAt) > new Date();
+
    return (
-      <div className="relative min-h-screen w-full flex items-center justify-center bg-slate-950 overflow-hidden">
-         {/* Background Image Layer */}
-         <div
-            className="absolute inset-0 bg-cover bg-center filter brightness-50"
-            style={{
-               backgroundImage: `url('https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1920&q=80')`
-            }}
-         />
-
-         {/* Dark overlay for contrast */}
-         <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
-
-         {/* Floating Glassmorphism Login Card */}
-         <div className="relative z-10 w-full max-w-md mx-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-8 shadow-2xl text-white">
-            <h2 className="text-3xl font-bold mb-6 text-center tracking-wide text-white">
-               {isLogin ? 'Login' : 'Create Account'}
-            </h2>
-
-            {error && (
-               <div className="bg-red-500/20 border border-red-500/50 text-red-200 p-3 rounded-xl text-sm mb-4 text-center">
-                  {error}
+      <div className="min-h-screen bg-[#190019] text-[#FBE4D8] p-6 md:p-8">
+         {/* Top Header Bar */}
+         <header className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-4 mb-8 border-b border-[#522B5B]/70 pb-5">
+            <div>
+               <div className="flex items-center gap-2.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#DFB6B2] animate-pulse" />
+                  <h1 className="text-3xl font-black tracking-tight text-[#FBE4D8]">
+                     {loungeData?.loungeVibes || 'AI DJ Lounge'}
+                  </h1>
                </div>
-            )}
+               <p className="text-sm text-[#DFB6B2]/80 mt-1 font-medium">
+                  Real-time collaborative audio session
+                  {loungeData?.inviteCode && (
+                     <span className="ml-3 inline-block bg-[#2B124C] text-[#FBE4D8] px-2.5 py-0.5 rounded-md font-mono text-xs border border-[#854F6C]">
+                        CODE: {loungeData.inviteCode}
+                     </span>
+                  )}
+               </p>
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-               {!isLogin && (
-                  <div>
-                     <label className="block text-xs uppercase tracking-wider text-slate-300 mb-1 font-medium">Username</label>
-                     <input
-                        type="text"
-                        name="username"
-                        value={formData.username}
-                        onChange={handleChange}
-                        required={!isLogin}
-                        className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400"
-                        placeholder="DJ_Nova"
+            <div className="flex items-center gap-3">
+               <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="text-xs bg-[#854F6C] hover:bg-[#522B5B] text-[#FBE4D8] px-4 py-2 rounded-xl font-bold tracking-wide transition shadow-sm cursor-pointer border border-[#DFB6B2]/30"
+               >
+                  + Create Lounge
+               </button>
+
+               <span className="text-xs bg-[#2B124C] border border-[#522B5B] px-3.5 py-2 rounded-xl text-[#DFB6B2] font-medium">
+                  Role:{' '}
+                  <strong className="text-[#FBE4D8] uppercase tracking-wider">
+                     {storedUser.role || 'listener'}
+                  </strong>
+               </span>
+
+               <button
+                  onClick={handleLogout}
+                  className="text-xs bg-[#DFB6B2] hover:bg-[#FBE4D8] text-[#190019] px-4 py-2 rounded-xl font-bold tracking-wide transition shadow-sm cursor-pointer"
+               >
+                  Logout
+               </button>
+            </div>
+         </header>
+
+         {/* Main Grid Layout */}
+         <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+            {/* Left Sidebar: Active Participants */}
+            <div className="lg:col-span-1 w-full rounded-2xl overflow-hidden border border-[#522B5B]/70 bg-[#2B124C]/60">
+               <ActiveParticipants
+                  loungeId={loungeId}
+                  userId={userId}
+                  displayName={displayName}
+               />
+            </div>
+
+            {/* Center Area: Player Timer & Soundclash Battle */}
+            <div className="lg:col-span-3 w-full space-y-6">
+               <div className="w-full rounded-2xl overflow-hidden border border-[#522B5B]/70 bg-[#2B124C]/60">
+                  <TrackPlayerTimer
+                     loungeId={loungeId}
+                     currentTrack={loungeData?.currentTrackId}
+                  />
+               </div>
+
+               {loungeData?.settings?.soundclashEnabled && isSoundclashActive && (
+                  <div className="w-full rounded-2xl overflow-hidden border border-[#854F6C] bg-[#2B124C]/80">
+                     <SoundclashCard
+                        loungeId={loungeId}
+                        userId={userId}
+                        candidates={loungeData.soundclash.candidates}
                      />
                   </div>
                )}
-
-               <div>
-                  <label className="block text-xs uppercase tracking-wider text-slate-300 mb-1 font-medium">Email</label>
-                  <input
-                     type="email"
-                     name="email"
-                     value={formData.email}
-                     onChange={handleChange}
-                     required
-                     className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400"
-                     placeholder="dj@example.com"
-                  />
-               </div>
-
-               <div>
-                  <label className="block text-xs uppercase tracking-wider text-slate-300 mb-1 font-medium">Password</label>
-                  <input
-                     type="password"
-                     name="password"
-                     value={formData.password}
-                     onChange={handleChange}
-                     required
-                     className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400"
-                     placeholder="••••••••"
-                  />
-               </div>
-
-               <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-50"
-               >
-                  {loading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
-               </button>
-            </form>
-
-            <div className="mt-6 text-center text-sm text-slate-300">
-               {isLogin ? "Don't have an account? " : "Already have an account? "}
-               <button
-                  onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                  className="text-indigo-300 hover:text-white font-semibold underline ml-1 focus:outline-none cursor-pointer"
-               >
-                  {isLogin ? 'Register' : 'Login'}
-               </button>
             </div>
-         </div>
+         </main>
+
+         {/* Create Lounge Modal */}
+         {showCreateModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+               <div className="w-full max-w-md bg-[#2B124C] border border-[#854F6C] rounded-2xl p-6 shadow-2xl text-[#FBE4D8]">
+                  <div className="flex justify-between items-center mb-4">
+                     <h2 className="text-xl font-bold">Create a New Lounge</h2>
+                     <button
+                        onClick={() => setShowCreateModal(false)}
+                        className="text-[#DFB6B2] hover:text-[#FBE4D8] text-lg cursor-pointer"
+                     >
+                        ✕
+                     </button>
+                  </div>
+
+                  {createError && (
+                     <div className="mb-4 text-xs bg-red-500/20 border border-red-400/50 text-red-200 p-2.5 rounded-lg">
+                        {createError}
+                     </div>
+                  )}
+
+                  <form onSubmit={handleCreateLounge} className="space-y-4">
+                     <div>
+                        <label className="block text-xs uppercase tracking-wider text-[#DFB6B2] mb-1.5 font-semibold">
+                           Lounge Vibe / Name
+                        </label>
+                        <input
+                           type="text"
+                           value={loungeVibes}
+                           onChange={(e) => setLoungeVibes(e.target.value)}
+                           placeholder="e.g. Late Night Lo-Fi, High-Energy EDM"
+                           required
+                           className="w-full bg-[#190019] border border-[#522B5B] rounded-xl px-4 py-2.5 text-[#FBE4D8] placeholder-[#854F6C] focus:outline-none focus:border-[#DFB6B2]"
+                        />
+                     </div>
+
+                     <div className="flex justify-end gap-2 pt-2">
+                        <button
+                           type="button"
+                           onClick={() => setShowCreateModal(false)}
+                           className="text-xs px-4 py-2 rounded-xl border border-[#522B5B] text-[#DFB6B2] hover:bg-[#522B5B]/40 cursor-pointer"
+                        >
+                           Cancel
+                        </button>
+                        <button
+                           type="submit"
+                           disabled={creating}
+                           className="text-xs px-5 py-2 rounded-xl bg-[#DFB6B2] hover:bg-[#FBE4D8] text-[#190019] font-bold transition cursor-pointer disabled:opacity-50"
+                        >
+                           {creating ? 'Creating...' : 'Launch Lounge'}
+                        </button>
+                     </div>
+                  </form>
+               </div>
+            </div>
+         )}
       </div>
    );
 };
 
-export default AuthForm;
+/* #190019: Main background
+
+#2B124C: Cards, modal, and badges
+
+#522B5B: Borders and inputs
+
+#854F6C: Accents and hover states
+
+#DFB6B2: Subtitles and primary buttons
+
+#FBE4D8: Headings and main text */
+
+export default LoungeDashboard;

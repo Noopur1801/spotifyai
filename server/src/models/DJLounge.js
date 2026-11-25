@@ -1,17 +1,17 @@
 import mongoose from 'mongoose';
 
 const djLoungeSchema = new mongoose.Schema({
-  hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  inviteCode: { type: String, required: true, unique: true, length: 6 }, // 6-char hex
+  hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  inviteCode: { type: String, required: true, unique: true, length: 6 },
   loungeVibes: { type: String, required: true },
   status: { type: String, enum: ['scheduled', 'live', 'ended'], default: 'scheduled' },
 
   queue: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Track' }],
   currentTrackId: { type: mongoose.Schema.Types.ObjectId, ref: 'Track', default: null },
-  currentTrackTime: { type: Number, default: 0 }, // playback position in seconds
+  currentTrackTime: { type: Number, default: 0 },
 
   soundclash: {
-    endsAt: { type: Date, default: null }, // active only when endsAt > Date.now()
+    endsAt: { type: Date, default: null },
     candidates: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Track' }],
     votes: { type: Map, of: String, default: {} }
   },

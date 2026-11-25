@@ -1,42 +1,55 @@
 import DJLounge from '../models/DJLounge.js';
 
 export const setupSoundclashHandlers = (io, socket) => {
-  
-  // Handle live vote casting over WebSocket for instant broadcast
-  socket.on('soundclash.vote', async ({ loungeId, userId, trackId }) => {
+  // Start a soundclash (default duration: 30 seconds)
+  socket.on('start_soundclash', async ({ loungeId, candidateTrackIds, durationSec = 30 }) => {
+    try {
+      const endsAt = new Date(Date.now() + durationSec * 1000);
+
+      const lounge = await DJLounge.findByIdAndUpdate(
+        loungeId,
+        {
+          'soundclash.endsAt': endsAt,
+          'soundclash.candidates': candidateTrackIds || [],
+          'soundclash.votes': {},
+        },
+        { new: true }
+      );
+
+      if (!lounge) {
+        return socket.emit('soundclash_error', { message: 'Lounge not found' });
+      }
+
+      io.to(loungeId).emit('soundclash_started', {
+        loungeId,
+        soundclash: lounge.soundclash,
+      });
+    } catch (err) {
+      socket.emit('soundclash_error', { message: err.message });
+    }
+  });
+
+  // Cast a vote while endsAt is still in the future
+  socket.on('cast_vote', async ({ loungeId, userId, trackId }) => {
     try {
       const lounge = await DJLounge.findById(loungeId);
-      if (!lounge || !lounge.soundclash.active) {
-        socket.emit('error', { message: 'No active Soundclash battle found' });
-        return;
+      const isActive = lounge?.soundclash?.endsAt && new Date(lounge.soundclash.endsAt) > new Date();
+
+      if (!isActive) {
+        return socket.emit('soundclash_error', { message: 'No active soundclash' });
       }
 
-      // Record or update user vote in the Mongoose Map
-      lounge.soundclash.votes.set(userId, trackId);
+      lounge.soundclash.votes.set(String(userId || socket.id), String(trackId));
       await lounge.save();
 
-      // Calculate current vote tallies for each candidate track
-      const tallies = {};
-      lounge.soundclash.candidates.forEach(id => {
-        tallies[id.toString()] = 0;
+      io.to(loungeId).emit('vote_updated', {
+        loungeId,
+        votes: Object.fromEntries(lounge.soundclash.votes),
+        candidates: lounge.soundclash.candidates,
+        endsAt: lounge.soundclash.endsAt,
       });
-
-      for (const votedTrackId of lounge.soundclash.votes.values()) {
-        const key = votedTrackId.toString();
-        if (tallies[key] !== undefined) {
-          tallies[key]++;
-        }
-      }
-
-      // Broadcast updated vote counts to every participant in the lounge room instantly
-      io.to(loungeId).emit('soundclash.vote.update', {
-        tallies,
-        totalVotes: lounge.soundclash.votes.size,
-        updatedAt: new Date().toISOString()
-      });
-
-    } catch (error) {
-      socket.emit('error', { message: error.message });
+    } catch (err) {
+      socket.emit('soundclash_error', { message: err.message });
     }
   });
 };
